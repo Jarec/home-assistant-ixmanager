@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any
+from typing import NoReturn
 
 import aiohttp
 from homeassistant.core import HomeAssistant
@@ -12,8 +13,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import API_TIMEOUT
 from .const import BASE_URL
+from .const import PROPERTY_CHARGING_ENABLE
+from .exceptions import IXManagerAuthenticationError
 from .exceptions import IXManagerConnectionError
 from .exceptions import IXManagerError
+from .exceptions import IXManagerNotFoundError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +38,33 @@ class IXManagerApiClient:
         self._controller_id = controller_id
         self._session = async_get_clientsession(hass)
 
+    @property
+    def _url(self) -> str:
+        """Return the properties endpoint for the configured controller.
+
+        Returns:
+            Fully qualified endpoint URL
+        """
+        return f"{BASE_URL}/thing/{self._controller_id}/properties"
+
+    @staticmethod
+    def _raise_for_status(status: int) -> NoReturn:
+        """Translate an unsuccessful HTTP status into an integration exception.
+
+        Args:
+            status: HTTP status code returned by the API
+
+        Raises:
+            IXManagerAuthenticationError: If the API key was rejected
+            IXManagerNotFoundError: If the controller or property is unknown
+            IXManagerError: For any other unsuccessful status
+        """
+        if status in (401, 403):
+            raise IXManagerAuthenticationError("Invalid API key")
+        if status == 404:
+            raise IXManagerNotFoundError("Controller or property not found")
+        raise IXManagerError(f"API returned status {status}")
+
     async def async_get_properties(self, keys: list[str]) -> dict[str, Any]:
         """Get device properties from the API.
 
@@ -45,9 +76,10 @@ class IXManagerApiClient:
 
         Raises:
             IXManagerConnectionError: If connection to API fails
+            IXManagerAuthenticationError: If the API key was rejected
+            IXManagerNotFoundError: If the controller is unknown
             IXManagerError: If API returns an error
         """
-        url = f"{BASE_URL}/thing/{self._controller_id}/properties"
         headers = {"X-API-KEY": self._api_key}
         params = {"keys": keys}
 
@@ -55,18 +87,14 @@ class IXManagerApiClient:
             _LOGGER.debug("Fetching properties: %s", keys)
             async with asyncio.timeout(API_TIMEOUT):
                 async with self._session.get(
-                    url, headers=headers, params=params
+                    self._url, headers=headers, params=params
                 ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        _LOGGER.debug("Received data: %s", data)
-                        return data
-                    elif response.status == 401:
-                        raise IXManagerError("Invalid API key")
-                    elif response.status == 404:
-                        raise IXManagerError("Controller not found")
-                    else:
-                        raise IXManagerError(f"API returned status {response.status}")
+                    if response.status != 200:
+                        self._raise_for_status(response.status)
+
+                    data: dict[str, Any] = await response.json()
+                    _LOGGER.debug("Received data: %s", data)
+                    return data
 
         except asyncio.TimeoutError as err:
             raise IXManagerConnectionError(
@@ -77,21 +105,19 @@ class IXManagerApiClient:
                 f"Error connecting to iXmanager API: {err}"
             ) from err
 
-    async def async_set_property(self, key: str, value: Any) -> bool:
+    async def async_set_property(self, key: str, value: Any) -> None:
         """Set a device property via the API.
 
         Args:
             key: Property key to set
             value: Value to set
 
-        Returns:
-            True if successful
-
         Raises:
             IXManagerConnectionError: If connection to API fails
+            IXManagerAuthenticationError: If the API key was rejected
+            IXManagerNotFoundError: If the controller or property is unknown
             IXManagerError: If API returns an error
         """
-        url = f"{BASE_URL}/thing/{self._controller_id}/properties"
         headers = {"X-API-KEY": self._api_key, "Content-Type": "application/json"}
         data = {key: value}
 
@@ -99,17 +125,12 @@ class IXManagerApiClient:
             _LOGGER.debug("Setting property %s to %s", key, value)
             async with asyncio.timeout(API_TIMEOUT):
                 async with self._session.patch(
-                    url, headers=headers, json=data
+                    self._url, headers=headers, json=data
                 ) as response:
-                    if response.status in (200, 204):
-                        _LOGGER.debug("Successfully set property %s", key)
-                        return True
-                    elif response.status == 401:
-                        raise IXManagerError("Invalid API key")
-                    elif response.status == 404:
-                        raise IXManagerError("Controller or property not found")
-                    else:
-                        raise IXManagerError(f"API returned status {response.status}")
+                    if response.status not in (200, 204):
+                        self._raise_for_status(response.status)
+
+                    _LOGGER.debug("Successfully set property %s", key)
 
         except asyncio.TimeoutError as err:
             raise IXManagerConnectionError(
@@ -120,18 +141,13 @@ class IXManagerApiClient:
                 f"Error connecting to iXmanager API: {err}"
             ) from err
 
-    async def async_validate_connection(self) -> bool:
+    async def async_validate_connection(self) -> None:
         """Validate the API connection and credentials.
-
-        Returns:
-            True if connection is valid
 
         Raises:
             IXManagerConnectionError: If connection fails
-            IXManagerError: If credentials are invalid
+            IXManagerAuthenticationError: If the API key was rejected
+            IXManagerNotFoundError: If the serial number is unknown
+            IXManagerError: If API returns an error
         """
-        try:
-            await self.async_get_properties(["chargingEnable"])
-            return True
-        except (IXManagerConnectionError, IXManagerError):
-            raise
+        await self.async_get_properties([PROPERTY_CHARGING_ENABLE])

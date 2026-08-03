@@ -17,22 +17,25 @@
           "cable_type": "Vyberte maximální proud vašeho nabíjecího kabelu"
         }
       },
-      
       "reauth_confirm": {
         "title": "Znovu ověřit iXmanager",
         "description": "Zadejte svůj API klíč pro znovu ověření",
         "data": {
           "api_key": "API klíč"
+        },
+        "data_description": {
+          "api_key": "Váš iXmanager API klíč z nastavení účtu"
         }
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "cannot_connect": "Připojení se nezdařilo",
+      "invalid_auth": "Neplatné přihlašovací údaje",
+      "invalid_serial_number": "Wallbox s tímto sériovým číslem nebyl nalezen",
+      "unknown": "Neočekávaná chyba"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "already_configured": "Zařízení je již nakonfigurováno",
       "reauth_successful": "Znovu ověření bylo úspěšné"
     }
   },
@@ -56,6 +59,84 @@
         "16A": "Kabel Type 2 (max 16A) - Standardní kabel",
         "32A": "Kabel Type 2 (max 32A) - Výkonný kabel"
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_charging_power": {
+        "name": "Nabíjecí výkon"
+      },
+      "charging_current_l1": {
+        "name": "Nabíjecí proud L1"
+      },
+      "charging_current_l2": {
+        "name": "Nabíjecí proud L2"
+      },
+      "charging_current_l3": {
+        "name": "Nabíjecí proud L3"
+      },
+      "total_energy": {
+        "name": "Celková spotřeba"
+      },
+      "boost_remaining": {
+        "name": "Zbývající čas boostu"
+      },
+      "wifi_signal_strength": {
+        "name": "Síla signálu Wi-Fi"
+      },
+      "charging_status": {
+        "name": "Stav nabíjení",
+        "state": {
+          "INIT": "Inicializace",
+          "IDLE": "Vozidlo nepřipojeno",
+          "CONNECTED": "Vozidlo připojeno",
+          "CHARGING": "Nabíjí se",
+          "CHARGING_WITH_VENTILATION": "Nabíjí se s ventilací",
+          "CONTROL_PILOT_ERROR": "Chyba řídicího pilotu",
+          "ERROR": "Chyba"
+        }
+      },
+      "wifi_ssid": {
+        "name": "Síť Wi-Fi"
+      },
+      "wifi_bssid": {
+        "name": "BSSID Wi-Fi"
+      }
+    },
+    "binary_sensor": {
+      "charging_state": {
+        "name": "Nabíjení probíhá"
+      },
+      "boost_state": {
+        "name": "Boost"
+      }
+    },
+    "switch": {
+      "charging_enable": {
+        "name": "Nabíjení"
+      },
+      "single_phase": {
+        "name": "Jednofázový režim"
+      }
+    },
+    "number": {
+      "maximum_current": {
+        "name": "Maximální nabíjecí proud"
+      },
+      "target_current": {
+        "name": "Cílový nabíjecí proud"
+      },
+      "boost_current": {
+        "name": "Proud při boostu"
+      },
+      "boost_time": {
+        "name": "Délka boostu"
+      }
+    }
+  },
+  "exceptions": {
+    "write_failed": {
+      "message": "Nepodařilo se nastavit {property_key} na {value}: {error}"
     }
   }
 }

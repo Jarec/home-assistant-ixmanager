@@ -22,16 +22,20 @@
         "description": "Enter your API key to re-authenticate",
         "data": {
           "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "Your iXmanager API key from account settings"
         }
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "invalid_serial_number": "No wallbox with this serial number was found",
+      "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "already_configured": "Device is already configured",
       "reauth_successful": "Re-authentication was successful"
     }
   },
@@ -55,6 +59,84 @@
         "16A": "Type 2 Cable (16A Max) - Standard charging cable",
         "32A": "Type 2 Cable (32A Max) - High power charging cable"
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_charging_power": {
+        "name": "Charging power"
+      },
+      "charging_current_l1": {
+        "name": "Charging current L1"
+      },
+      "charging_current_l2": {
+        "name": "Charging current L2"
+      },
+      "charging_current_l3": {
+        "name": "Charging current L3"
+      },
+      "total_energy": {
+        "name": "Total energy"
+      },
+      "boost_remaining": {
+        "name": "Boost remaining"
+      },
+      "wifi_signal_strength": {
+        "name": "Wi-Fi signal strength"
+      },
+      "charging_status": {
+        "name": "Charging status",
+        "state": {
+          "INIT": "Initializing",
+          "IDLE": "No vehicle connected",
+          "CONNECTED": "Vehicle connected",
+          "CHARGING": "Charging",
+          "CHARGING_WITH_VENTILATION": "Charging with ventilation",
+          "CONTROL_PILOT_ERROR": "Control pilot error",
+          "ERROR": "Error"
+        }
+      },
+      "wifi_ssid": {
+        "name": "Wi-Fi network"
+      },
+      "wifi_bssid": {
+        "name": "Wi-Fi BSSID"
+      }
+    },
+    "binary_sensor": {
+      "charging_state": {
+        "name": "Charging active"
+      },
+      "boost_state": {
+        "name": "Boost"
+      }
+    },
+    "switch": {
+      "charging_enable": {
+        "name": "Charging"
+      },
+      "single_phase": {
+        "name": "Single phase mode"
+      }
+    },
+    "number": {
+      "maximum_current": {
+        "name": "Maximum charging current"
+      },
+      "target_current": {
+        "name": "Target charging current"
+      },
+      "boost_current": {
+        "name": "Boost current"
+      },
+      "boost_time": {
+        "name": "Boost duration"
+      }
+    }
+  },
+  "exceptions": {
+    "write_failed": {
+      "message": "Failed to set {property_key} to {value}: {error}"
     }
   }
 }

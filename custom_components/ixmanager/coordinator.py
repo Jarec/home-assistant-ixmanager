@@ -5,113 +5,92 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .api_client import IXManagerApiClient
 from .const import DOMAIN
-from .const import PROPERTY_CHARGING_CURRENT
-from .const import PROPERTY_CHARGING_CURRENT_L2
-from .const import PROPERTY_CHARGING_CURRENT_L3
-from .const import PROPERTY_CHARGING_ENABLE
-from .const import PROPERTY_CHARGING_STATUS
-from .const import PROPERTY_CURRENT_CHARGING_POWER
-from .const import PROPERTY_MAXIMUM_CURRENT
-from .const import PROPERTY_SIGNAL
-from .const import PROPERTY_SINGLE_PHASE
-from .const import PROPERTY_TARGET_CURRENT
-from .const import PROPERTY_TOTAL_ENERGY
+from .const import PROPERTIES_TO_FETCH
 from .const import UPDATE_INTERVAL
-from .exceptions import IXManagerConnectionError
+from .exceptions import IXManagerAuthenticationError
 from .exceptions import IXManagerError
 
 _LOGGER = logging.getLogger(__name__)
+
+type IXManagerConfigEntry = ConfigEntry[IXManagerDataUpdateCoordinator]
+
+
+def _unwrap(value: Any) -> Any:
+    """Unwrap a property the API returned as ``{"value": X}``.
+
+    Args:
+        value: Raw property value from the API, either wrapped or bare
+
+    Returns:
+        The plain value
+    """
+    if isinstance(value, dict) and "value" in value:
+        return value["value"]
+    return value
 
 
 class IXManagerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching data from the iXmanager API."""
 
+    config_entry: IXManagerConfigEntry
+
     def __init__(
         self,
         hass: HomeAssistant,
+        entry: IXManagerConfigEntry,
         api_client: IXManagerApiClient,
     ) -> None:
         """Initialize the coordinator.
 
         Args:
             hass: Home Assistant instance
+            entry: Config entry owning this coordinator
             api_client: API client instance
         """
         self.api_client = api_client
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
             update_interval=UPDATE_INTERVAL,
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Update data via library.
+        """Fetch every tracked property and flatten the response.
+
+        The API returns each property either as a bare value or wrapped in
+        ``{"value": X}``. Unwrapping happens here so that entities — and the
+        optimistic writes that poke values straight into ``self.data`` — only
+        ever deal with plain values.
 
         Returns:
-            Dictionary containing all device properties
+            Dictionary mapping each property key to its plain value
 
         Raises:
-            UpdateFailed: If update fails
+            ConfigEntryAuthFailed: If the API key was rejected, so that Home
+                Assistant starts the reauth flow
+            UpdateFailed: If the update fails for any other reason
         """
         try:
-            properties_to_fetch = [
-                PROPERTY_CHARGING_ENABLE,
-                PROPERTY_MAXIMUM_CURRENT,
-                PROPERTY_TARGET_CURRENT,
-                PROPERTY_CURRENT_CHARGING_POWER,
-                PROPERTY_CHARGING_CURRENT,
-                PROPERTY_CHARGING_CURRENT_L2,
-                PROPERTY_CHARGING_CURRENT_L3,
-                PROPERTY_TOTAL_ENERGY,
-                PROPERTY_SINGLE_PHASE,
-                PROPERTY_SIGNAL,
-                PROPERTY_CHARGING_STATUS,
-            ]
+            data = await self.api_client.async_get_properties(PROPERTIES_TO_FETCH)
 
-            data = await self.api_client.async_get_properties(properties_to_fetch)
-            _LOGGER.debug("Coordinator updated data: %s", data)
-            return data
-
-        except IXManagerConnectionError as err:
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
+        except IXManagerAuthenticationError as err:
+            raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
         except IXManagerError as err:
-            raise UpdateFailed(f"Invalid response from API: {err}") from err
+            raise UpdateFailed(f"Error communicating with API: {err}") from err
         except Exception as err:
+            _LOGGER.exception("Unexpected error fetching iXmanager data")
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
-    async def async_update_single_property(
-        self, property_key: str
-    ) -> dict[str, Any] | None:
-        """Update a single property for targeted refresh.
-
-        Args:
-            property_key: The property to update
-
-        Returns:
-            Updated property data or None if failed
-        """
-        try:
-            data = await self.api_client.async_get_properties([property_key])
-
-            if self.data and property_key in data:
-                self.data[property_key] = data[property_key]
-                _LOGGER.debug(
-                    "Single property update for %s: %s",
-                    property_key,
-                    data[property_key],
-                )
-
-            return data
-
-        except Exception as err:
-            _LOGGER.warning(
-                "Failed to update single property %s: %s", property_key, err
-            )
-            return None
+        properties = {key: _unwrap(value) for key, value in data.items()}
+        _LOGGER.debug("Coordinator updated data: %s", properties)
+        return properties

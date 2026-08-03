@@ -10,8 +10,8 @@ class IXManagerConnectionError(IXManagerError):
 
 
 class IXManagerAuthenticationError(IXManagerError):
-    """Exception raised when authentication fails."""
+    """Exception raised when the API rejects the API key."""
 
 
-class IXManagerTimeoutError(IXManagerError):
-    """Exception raised when API request times out."""
+class IXManagerNotFoundError(IXManagerError):
+    """Exception raised when the controller or property does not exist."""

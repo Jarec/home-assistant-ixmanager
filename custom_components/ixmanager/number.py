@@ -2,41 +2,145 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
+from homeassistant.components.number import DEFAULT_MAX_VALUE
+from homeassistant.components.number import DEFAULT_MIN_VALUE
+from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntityDescription
 from homeassistant.components.number import NumberMode
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfElectricCurrent
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import IXManagerConfigEntry
+from .const import BOOST_TIME_MAX
+from .const import BOOST_TIME_MIN
+from .const import BOOST_TIME_STEP
 from .const import CABLE_TYPES
+from .const import CHARGING_CURRENT_STEP
 from .const import CONF_CABLE_TYPE
-from .const import CONF_SERIAL_NUMBER
 from .const import DEFAULT_CABLE_TYPE
-from .const import DOMAIN
+from .const import MIN_CHARGING_CURRENT
+from .const import PROPERTY_BOOST_CURRENT
+from .const import PROPERTY_BOOST_TIME
 from .const import PROPERTY_MAXIMUM_CURRENT
 from .const import PROPERTY_TARGET_CURRENT
+from .coordinator import IXManagerConfigEntry
 from .coordinator import IXManagerDataUpdateCoordinator
-from .exceptions import IXManagerError
+from .entity import IXManagerEntity
+from .entity import IXManagerEntityDescription
 
 _LOGGER = logging.getLogger(__name__)
 
-# Constants for charging current limits
-MIN_CHARGING_CURRENT = 6
-MAX_CHARGING_CURRENT = 32
-CHARGING_CURRENT_STEP = 1
+PARALLEL_UPDATES = 0
+
+
+def _cable_max(cable_max: int, data: dict[str, Any]) -> float:
+    """Cap a current at the configured cable rating.
+
+    Args:
+        cable_max: Maximum current the configured cable can carry
+        data: Current coordinator data, unused
+
+    Returns:
+        The cable limit
+    """
+    return float(cable_max)
+
+
+def _target_current_max(cable_max: int, data: dict[str, Any]) -> float:
+    """Cap the target current at the wallbox's live maximum current setting.
+
+    Args:
+        cable_max: Maximum current the configured cable can carry
+        data: Current coordinator data
+
+    Returns:
+        The lower of the cable limit and the maximum current setting
+    """
+    maximum_current = data.get(PROPERTY_MAXIMUM_CURRENT)
+    if maximum_current is None:
+        return float(cable_max)
+
+    try:
+        return min(float(cable_max), float(maximum_current))
+    except (ValueError, TypeError):
+        _LOGGER.warning("Invalid maximum current value: %s", maximum_current)
+        return float(cable_max)
+
+
+@dataclass(frozen=True, kw_only=True)
+class IXManagerNumberEntityDescription(
+    IXManagerEntityDescription, NumberEntityDescription
+):
+    """Describes an iXmanager number entity.
+
+    ``max_value_fn`` derives the upper bound from the configured cable and the
+    live device data. Descriptions that set it must also set
+    ``native_min_value``, which is used as the floor of the derived range.
+    Descriptions without it fall back to their own ``native_max_value``.
+    """
+
+    max_value_fn: Callable[[int, dict[str, Any]], float] | None = None
+
+
+NUMBERS: tuple[IXManagerNumberEntityDescription, ...] = (
+    IXManagerNumberEntityDescription(
+        key="maximum_current",
+        property_key=PROPERTY_MAXIMUM_CURRENT,
+        translation_key="maximum_current",
+        device_class=NumberDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        native_min_value=MIN_CHARGING_CURRENT,
+        native_step=CHARGING_CURRENT_STEP,
+        mode=NumberMode.SLIDER,
+        max_value_fn=_cable_max,
+    ),
+    IXManagerNumberEntityDescription(
+        key="target_current",
+        property_key=PROPERTY_TARGET_CURRENT,
+        translation_key="target_current",
+        device_class=NumberDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        native_min_value=MIN_CHARGING_CURRENT,
+        native_step=CHARGING_CURRENT_STEP,
+        mode=NumberMode.SLIDER,
+        max_value_fn=_target_current_max,
+    ),
+    IXManagerNumberEntityDescription(
+        key="boost_current",
+        property_key=PROPERTY_BOOST_CURRENT,
+        translation_key="boost_current",
+        device_class=NumberDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        native_min_value=MIN_CHARGING_CURRENT,
+        native_step=CHARGING_CURRENT_STEP,
+        mode=NumberMode.SLIDER,
+        max_value_fn=_target_current_max,
+    ),
+    IXManagerNumberEntityDescription(
+        key="boost_time",
+        property_key=PROPERTY_BOOST_TIME,
+        translation_key="boost_time",
+        device_class=NumberDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        native_min_value=BOOST_TIME_MIN,
+        native_max_value=BOOST_TIME_MAX,
+        native_step=BOOST_TIME_STEP,
+        mode=NumberMode.BOX,
+    ),
+)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: IXManagerConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up iXmanager number entities.
 
@@ -47,351 +151,89 @@ async def async_setup_entry(
     """
     coordinator = entry.runtime_data
 
-    entities: list[IXManagerNumberBase] = [
-        IXManagerChargingCurrentNumber(coordinator, entry),
-        IXManagerTargetCurrentNumber(coordinator, entry),
-    ]
-
-    async_add_entities(entities)
+    async_add_entities(
+        IXManagerNumber(coordinator, entry, description) for description in NUMBERS
+    )
 
 
-class IXManagerNumberBase(
-    CoordinatorEntity[IXManagerDataUpdateCoordinator], NumberEntity
-):
-    """Base class for iXmanager number entities."""
+class IXManagerNumber(IXManagerEntity, NumberEntity):
+    """Number entity writing a single integer iXmanager property."""
 
-    _attr_has_entity_name = True
+    entity_description: IXManagerNumberEntityDescription
 
     def __init__(
         self,
         coordinator: IXManagerDataUpdateCoordinator,
-        entry: ConfigEntry,
+        entry: IXManagerConfigEntry,
+        description: IXManagerNumberEntityDescription,
     ) -> None:
         """Initialize the number entity.
 
         Args:
             coordinator: Data update coordinator
             entry: Config entry
+            description: Description of this entity
         """
-        super().__init__(coordinator)
-        self._serial_number = entry.data[CONF_SERIAL_NUMBER]
-        self._cable_type = entry.data.get(CONF_CABLE_TYPE, DEFAULT_CABLE_TYPE)
-        self._attr_unique_id = f"{self._serial_number}_{self._number_key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self._serial_number)},
-            name=f"iXmanager {self._serial_number}",
-            manufacturer="R-EVC",
-            model="Wallbox EcoVolter",
-            serial_number=self._serial_number,
+        super().__init__(coordinator, entry, description)
+        cable_type = entry.data.get(CONF_CABLE_TYPE, DEFAULT_CABLE_TYPE)
+        cable_spec = CABLE_TYPES.get(cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
+        self._cable_max_current = int(cable_spec["max_current"])
+
+    @property
+    def native_max_value(self) -> float:
+        """Return the highest value this entity currently accepts.
+
+        Current limits derive their ceiling from the configured cable and the
+        live device data through ``max_value_fn``; entities without one — such
+        as the boost duration — use the fixed range from their description.
+        Home Assistant validates any requested value against this before
+        ``async_set_native_value`` is reached.
+
+        Returns:
+            Maximum settable value in the entity's native unit
+        """
+        native_max_value = self.entity_description.native_max_value
+        max_value_fn = self.entity_description.max_value_fn
+        if max_value_fn is None:
+            if native_max_value is None:
+                return DEFAULT_MAX_VALUE
+            return native_max_value
+
+        native_min_value = self.entity_description.native_min_value
+        if native_min_value is None:
+            native_min_value = DEFAULT_MIN_VALUE
+
+        return max(
+            native_min_value,
+            max_value_fn(self._cable_max_current, self.coordinator.data or {}),
         )
-        self._api_call_in_progress: bool = False
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available.
-
-        Returns:
-            True if coordinator has data and is available
-        """
-        return (
-            self.coordinator.last_update_success
-            and self.coordinator.data is not None
-            and self._property_key in self.coordinator.data
-            and self.coordinator.data[self._property_key] is not None
-        )
-
-    @property
-    def _number_key(self) -> str:
-        """Return the number key for unique ID.
-
-        Returns:
-            Number key string
-        """
-        raise NotImplementedError
-
-    @property
-    def _property_key(self) -> str:
-        """Return the property key for this number entity.
-
-        Returns:
-            Property key string
-        """
-        raise NotImplementedError
 
     @property
     def native_value(self) -> float | None:
         """Return the current value.
 
         Returns:
-            Current value or None if not available
+            Current value, or None if missing or unparsable
         """
-        if not self.available:
+        value = self._property_value
+        if value is None:
             return None
 
-        property_data = self.coordinator.data.get(self._property_key)
-        if property_data is not None:
-            # Handle both dict format {'value': X} and direct value format
-            if isinstance(property_data, dict) and "value" in property_data:
-                value = property_data["value"]
-            else:
-                value = property_data
-
-            try:
-                return float(value)
-            except (ValueError, TypeError):
-                _LOGGER.warning("Invalid value for %s: %s", self._property_key, value)
-        return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            _LOGGER.warning(
+                "Invalid value for %s: %s", self.entity_description.key, value
+            )
+            return None
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set the number value using HA best practices for responsive UI.
+        """Write the value to the device.
 
         Args:
-            value: Value to set
+            value: Value to set, already validated against the min/max range
+
+        Raises:
+            HomeAssistantError: If the API rejected the write
         """
-        # Prevent multiple simultaneous API calls
-        if self._api_call_in_progress:
-            _LOGGER.debug(
-                "API call already in progress for %s, ignoring request",
-                self._property_key,
-            )
-            return
-
-        # Validate against cable type limit
-        cable_spec = CABLE_TYPES.get(self._cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
-        max_current = int(cable_spec["max_current"])
-
-        if value > max_current:
-            _LOGGER.warning(
-                "Requested current %sA exceeds cable limit %sA for %s",
-                value,
-                max_current,
-                cable_spec["name"],
-            )
-            # Clamp to maximum allowed value
-            value = float(max_current)
-
-        try:
-            self._api_call_in_progress = True
-            _LOGGER.debug("Setting %s to %s", self._property_key, value)
-
-            # Immediately update the coordinator data for responsive UI
-            if self.coordinator.data:
-                self.coordinator.data[self._property_key] = value
-                self.async_write_ha_state()  # Update UI immediately
-
-            # Make API call to set the property
-            await self.coordinator.api_client.async_set_property(
-                self._property_key, value
-            )
-
-            # Schedule a coordinator refresh to get the actual state
-            # This happens in the background and will correct the value if needed
-            self.hass.async_create_task(self._async_delayed_refresh())
-
-        except IXManagerError as err:
-            _LOGGER.error("Failed to set %s to %s: %s", self._property_key, value, err)
-            # On error, request immediate refresh to restore correct state
-            await self.coordinator.async_request_refresh()
-        finally:
-            self._api_call_in_progress = False
-
-    async def _async_delayed_refresh(self) -> None:
-        """Refresh coordinator data after a short delay to verify state."""
-        await asyncio.sleep(0.5)  # Give API time to process
-        try:
-            await self.coordinator.async_request_refresh()
-        except Exception as err:
-            _LOGGER.debug("Delayed refresh failed: %s", err)
-
-
-class IXManagerChargingCurrentNumber(IXManagerNumberBase):
-    """Number entity for setting maximum charging current."""
-
-    _attr_name = "Maximum Charging Current"
-    _attr_native_min_value = MIN_CHARGING_CURRENT
-    _attr_native_step = CHARGING_CURRENT_STEP
-    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
-    _attr_icon = "mdi:current-ac"
-    _attr_mode = NumberMode.SLIDER
-
-    def __init__(
-        self,
-        coordinator: IXManagerDataUpdateCoordinator,
-        entry: ConfigEntry,
-    ) -> None:
-        """Initialize the charging current number entity.
-
-        Args:
-            coordinator: Data update coordinator
-            entry: Config entry
-        """
-        super().__init__(coordinator, entry)
-        # Set max value based on cable type
-        cable_spec = CABLE_TYPES.get(self._cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
-        self._attr_native_max_value = cable_spec["max_current"]
-
-        # Update entity name to include cable type info
-        self._attr_name = f"Maximum Charging Current ({cable_spec['name']})"
-
-        # Initialize state tracking
-        self._api_call_in_progress: bool = False
-
-    @property
-    def _number_key(self) -> str:
-        """Return the number key for unique ID."""
-        return "maximum_current"
-
-    @property
-    def _property_key(self) -> str:
-        """Return the property key for this number entity."""
-        return PROPERTY_MAXIMUM_CURRENT
-
-
-class IXManagerTargetCurrentNumber(IXManagerNumberBase):
-    """Number entity for setting target charging current."""
-
-    _attr_name = "Target Charging Current"
-    _attr_native_min_value = MIN_CHARGING_CURRENT
-    _attr_native_step = CHARGING_CURRENT_STEP
-    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
-    _attr_icon = "mdi:ev-plug-type2"
-    _attr_mode = NumberMode.SLIDER
-
-    def __init__(
-        self,
-        coordinator: IXManagerDataUpdateCoordinator,
-        entry: ConfigEntry,
-    ) -> None:
-        """Initialize the target current number entity.
-
-        Args:
-            coordinator: Data update coordinator
-            entry: Config entry
-        """
-        super().__init__(coordinator, entry)
-        # Set max value based on cable type
-        cable_spec = CABLE_TYPES.get(self._cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
-        self._attr_native_max_value = cable_spec["max_current"]
-
-        # Update entity name to include cable type info
-        self._attr_name = f"Target Charging Current ({cable_spec['name']})"
-
-        # Initialize state tracking
-        self._api_call_in_progress: bool = False
-
-    @property
-    def _number_key(self) -> str:
-        """Return the number key for unique ID."""
-        return "target_current"
-
-    @property
-    def _property_key(self) -> str:
-        """Return the property key for this number entity."""
-        return PROPERTY_TARGET_CURRENT
-
-    @property
-    def native_max_value(self) -> float | None:
-        """Return the dynamic maximum value based on current maximum current setting."""
-        # Start with cable type limit
-        cable_spec = CABLE_TYPES.get(self._cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
-        cable_max = int(cable_spec["max_current"])
-
-        # Check if we have coordinator data with maximum current
-        if self.coordinator.data:
-            max_current_data = self.coordinator.data.get(PROPERTY_MAXIMUM_CURRENT)
-            if max_current_data is not None:
-                # Handle both dict format {'value': X} and direct value format
-                if isinstance(max_current_data, dict) and "value" in max_current_data:
-                    max_current_value = max_current_data["value"]
-                else:
-                    max_current_value = max_current_data
-
-                try:
-                    max_current_float = float(max_current_value)
-                    # Return the lower of cable limit or current maximum setting
-                    return min(float(cable_max), max_current_float)
-                except (ValueError, TypeError):
-                    _LOGGER.warning(
-                        "Invalid maximum current value: %s", max_current_data
-                    )
-
-        # Fallback to cable limit if no valid maximum current data
-        return float(cable_max)
-
-    async def async_set_native_value(self, value: float) -> None:
-        """Set the target current value with validation against maximum current.
-
-        Args:
-            value: Value to set
-        """
-        # Prevent multiple simultaneous API calls
-        if self._api_call_in_progress:
-            _LOGGER.debug(
-                "API call already in progress for %s, ignoring request",
-                self._property_key,
-            )
-            return
-
-        # Validate against cable type limit first
-        cable_spec = CABLE_TYPES.get(self._cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
-        cable_max_current = int(cable_spec["max_current"])
-
-        if value > cable_max_current:
-            _LOGGER.warning(
-                "Requested target current %sA exceeds cable limit %sA for %s",
-                value,
-                cable_max_current,
-                cable_spec["name"],
-            )
-            # Clamp to cable maximum
-            value = float(cable_max_current)
-
-        # Validate against current maximum current setting
-        if self.coordinator.data:
-            max_current_data = self.coordinator.data.get(PROPERTY_MAXIMUM_CURRENT)
-            if max_current_data is not None:
-                # Handle both dict format {'value': X} and direct value format
-                if isinstance(max_current_data, dict) and "value" in max_current_data:
-                    max_current_value = max_current_data["value"]
-                else:
-                    max_current_value = max_current_data
-
-                try:
-                    max_current_float = float(max_current_value)
-                    if value > max_current_float:
-                        _LOGGER.warning(
-                            "Requested target current %sA exceeds maximum current setting %sA, clamping to maximum",
-                            value,
-                            max_current_float,
-                        )
-                        # Clamp to current maximum current setting
-                        value = max_current_float
-                except (ValueError, TypeError):
-                    _LOGGER.warning(
-                        "Invalid maximum current value: %s", max_current_data
-                    )
-
-        try:
-            self._api_call_in_progress = True
-            _LOGGER.debug("Setting %s to %s", self._property_key, value)
-
-            # Immediately update the coordinator data for responsive UI
-            if self.coordinator.data:
-                self.coordinator.data[self._property_key] = value
-                self.async_write_ha_state()  # Update UI immediately
-
-            # Make API call to set the property
-            await self.coordinator.api_client.async_set_property(
-                self._property_key, value
-            )
-
-            # Schedule a coordinator refresh to get the actual state
-            # This happens in the background and will correct the value if needed
-            self.hass.async_create_task(self._async_delayed_refresh())
-
-        except IXManagerError as err:
-            _LOGGER.error("Failed to set %s to %s: %s", self._property_key, value, err)
-            # On error, request immediate refresh to restore correct state
-            await self.coordinator.async_request_refresh()
-        finally:
-            self._api_call_in_progress = False
+        await self._async_write_property(int(value))

@@ -15,8 +15,50 @@ This integration provides support for the [R-EVC Wallbox EcoVolter](https://r-ev
 
 ## Prerequisites
 Before setting up this integration, ensure you have:
+- Home Assistant **2026.7.0** or newer.
 - Connected your wallbox with the iXmanager app on iOS or Android.
 - Generated an API key from your [iXmanager account](https://www.ixfield.com/app/account).
+
+## Provided entities
+
+| Platform | Entity | Notes |
+| --- | --- | --- |
+| `switch` | Charging | Enables/disables charging |
+| `switch` | Single phase mode | Switches between single- and three-phase charging |
+| `number` | Maximum charging current | Capped by the configured cable type |
+| `number` | Target charging current | Capped by the cable type and the current maximum |
+| `number` | Boost current | Capped by the cable type and the current maximum |
+| `number` | Boost duration | 0–86400 s; see [Boost](#boost) below |
+| `sensor` | Charging power | |
+| `sensor` | Charging current L1 / L2 / L3 | |
+| `sensor` | Total energy | |
+| `sensor` | Boost remaining | Time left of the running boost |
+| `sensor` | Wi-Fi signal strength | Diagnostic |
+| `sensor` | Charging status | Diagnostic, SAE J1772 states |
+| `sensor` | Wi-Fi network | Diagnostic |
+| `sensor` | Wi-Fi BSSID | Diagnostic, disabled by default |
+| `binary_sensor` | Charging active | On while the wallbox is actually charging |
+| `binary_sensor` | Boost | On while a boost is running |
+
+## Boost
+
+The API has no dedicated "start boost" command — boost is driven entirely by the boost
+duration:
+
+1. Set **Boost current** to the current you want during the boost.
+2. Set **Boost duration** to the number of seconds the boost should last. Writing a value
+   greater than zero starts it; **Boost** turns on and **Boost remaining** counts down.
+3. To cancel a running boost, set **Boost duration** back to `0`.
+
+## Upgrading to 3.0.0
+
+3.0.0 contains breaking changes:
+
+- **Home Assistant 2026.7.0 is now the minimum.** Earlier releases claimed to support 2024.2, but the code has required a newer core for some time.
+- **Four duplicate sensors were removed** — `chargingEnable` and `singlePhase` (already covered by the switches) and `maximumCurrent` and `targetCurrent` (already covered by the number entities). They will show up as *"restored / no longer provided by the integration"* in `Settings > Devices & Services > Entities`; delete them there. Update any automation that referenced them to use the corresponding switch or number entity.
+- **Entity names are now translated** and follow Home Assistant naming conventions. Existing `entity_id`s are preserved — only the displayed friendly name changes.
+- Charging current sensors now store full precision and round to two decimals for display, instead of rounding the stored value.
+- Total energy is now displayed in kWh on new installations. Existing entities keep whatever unit they were registered with; change it under the entity's settings if you want kWh.
 
 ## Installation
 

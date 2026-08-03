@@ -3,46 +3,22 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-try:
-    from typing import TypeAlias  # Python 3.10+
-except ImportError:
-    from typing_extensions import TypeAlias  # Python 3.9
-
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .api_client import IXManagerApiClient
 from .const import CONF_API_KEY
 from .const import CONF_SERIAL_NUMBER
-from .const import DOMAIN
 from .const import PLATFORMS
+from .coordinator import IXManagerConfigEntry
 from .coordinator import IXManagerDataUpdateCoordinator
+from .exceptions import IXManagerAuthenticationError
 from .exceptions import IXManagerConnectionError
 from .exceptions import IXManagerError
 
-if TYPE_CHECKING:
-    from homeassistant.helpers.typing import ConfigType
-
 _LOGGER = logging.getLogger(__name__)
-
-IXManagerConfigEntry: TypeAlias = ConfigEntry[IXManagerDataUpdateCoordinator]
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the iXmanager integration.
-
-    Args:
-        hass: Home Assistant instance
-        config: Integration configuration
-
-    Returns:
-        True if setup was successful
-    """
-    hass.data.setdefault(DOMAIN, {})
-    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: IXManagerConfigEntry) -> bool:
@@ -56,34 +32,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: IXManagerConfigEntry) ->
         True if setup was successful
 
     Raises:
+        ConfigEntryAuthFailed: If the API key was rejected
         ConfigEntryNotReady: If setup fails due to connection issues
     """
-    api_key = entry.data[CONF_API_KEY]
-    controller_id = entry.data[CONF_SERIAL_NUMBER]
+    api_client = IXManagerApiClient(
+        hass, entry.data[CONF_API_KEY], entry.data[CONF_SERIAL_NUMBER]
+    )
 
-    # Create API client
-    api_client = IXManagerApiClient(hass, api_key, controller_id)
-
-    # Validate connection
     try:
         await api_client.async_validate_connection()
+    except IXManagerAuthenticationError as err:
+        raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
     except IXManagerConnectionError as err:
-        _LOGGER.error("Failed to connect to iXmanager API: %s", err)
         raise ConfigEntryNotReady("Unable to connect to iXmanager API") from err
     except IXManagerError as err:
-        _LOGGER.error("Authentication failed: %s", err)
-        return False
+        raise ConfigEntryNotReady(f"Unexpected API response: {err}") from err
 
-    # Create coordinator
-    coordinator = IXManagerDataUpdateCoordinator(hass, api_client)
+    coordinator = IXManagerDataUpdateCoordinator(hass, entry, api_client)
 
     # Fetch initial data so we have data when entities subscribe
     await coordinator.async_config_entry_first_refresh()
 
-    # Store coordinator
     entry.runtime_data = coordinator
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
-    # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -103,11 +75,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: IXManagerConfigEntry) -
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: IXManagerConfigEntry) -> None:
-    """Reload config entry.
+    """Reload the config entry after its options changed.
+
+    Registered as an update listener so that changing the cable type takes
+    effect immediately instead of on the next Home Assistant restart.
 
     Args:
         hass: Home Assistant instance
         entry: Config entry to reload
     """
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+    await hass.config_entries.async_reload(entry.entry_id)
