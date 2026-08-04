@@ -3,7 +3,7 @@
 #
 # Home Assistant is only pinned to a minimum so that the weekly CI run type
 # checks against the current core release and surfaces deprecations early.
-homeassistant>=2026.7.0
+homeassistant>=2026.7.4
 mypy==2.3.0
 pre-commit==4.6.1
 ruff==0.16.1
