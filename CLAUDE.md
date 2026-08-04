@@ -16,7 +16,8 @@ cp -r custom_components/ixmanager <ha-config>/custom_components/   # then restar
 - mypy is not a pre-commit hook on purpose — it needs all of Home Assistant installed. CI and manual only.
 - `hassfest` and the HACS validator are GitHub Actions, not local commands. Only CI can tell you whether the manifest, translations and layout are valid against the current HA release.
 - Debug logging: `custom_components.ixmanager: debug` under `logger.logs` in `configuration.yaml`.
-- Release: bump `version` in `manifest.json`, then tag `vX.Y.Z` matching it. `release.yml` **fails if manifest and tag disagree** — they drifted before (`2.1.1` vs. `v2.1.2`).
+- Release: `gh workflow run release.yml -f version=X.Y.Z`, nothing else. The workflow validates, bumps `manifest.json`, commits, tags `vX.Y.Z` and publishes. **Never bump the version or create the tag by hand** — one input owning both is what stopped them drifting (`2.1.1` vs. `v2.1.2`). It also builds `ixmanager.zip`, which HACS downloads (`zip_release` in `hacs.json`), so the integration's files must stay at the *root* of that archive.
+- Releases in this repository are **immutable** — assets can only be attached as the release is created, and neither the release nor its tag can be edited or deleted afterwards. A botched release can only be superseded by the next version.
 
 ## Architecture
 

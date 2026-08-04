@@ -1,35 +1,98 @@
 name: Release
 
+# The version lives in exactly one place: the input below. This workflow bumps
+# `manifest.json`, commits, tags and publishes — never do any of that by hand,
+# or the manifest and the tag drift apart again (`2.1.1` vs. `v2.1.2`).
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the leading 'v', e.g. 3.1.4 or 3.2.0b1"
+        required: true
+        type: string
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+
   release:
+    needs: validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Verify manifest version matches the tag
+      - name: Check the version input
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          manifest_version="$(python3 -c "import json; print(json.load(open('custom_components/ixmanager/manifest.json'))['version'])")"
-          tag_version="${GITHUB_REF_NAME#v}"
-          if [ "$manifest_version" != "$tag_version" ]; then
-            echo "::error::manifest.json version ($manifest_version) does not match tag $GITHUB_REF_NAME"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]]; then
+            echo "::error::'$VERSION' is not a valid version (expected 3.1.4 or 3.2.0b1)"
             exit 1
           fi
-          echo "Version $manifest_version matches tag $GITHUB_REF_NAME"
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"
+            exit 1
+          fi
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Create Release
+      - name: Set the manifest version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          manifest=custom_components/ixmanager/manifest.json
+          tmp="$(mktemp)"
+          jq --arg v "$VERSION" '.version = $v' "$manifest" > "$tmp"
+          mv "$tmp" "$manifest"
+
+      - name: Commit, tag and push
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          manifest=custom_components/ixmanager/manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Already bumped means a previous run died between the commit and the
+          # tag — tag the existing commit instead of failing on an empty commit.
+          if git diff --quiet -- "$manifest"; then
+            echo "manifest.json is already at $VERSION, tagging HEAD as is"
+          else
+            git commit -m "Release v$VERSION" -- "$manifest"
+          fi
+          # `--follow-tags` only pushes annotated tags, hence `git tag -a`.
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin HEAD:main --follow-tags
+
+      # HACS unpacks this straight into `custom_components/ixmanager/`, so the
+      # files have to sit at the root of the archive — no `ixmanager/` prefix.
+      - name: Build the HACS zip
+        run: |
+          cd custom_components/ixmanager
+          zip -r ixmanager.zip . -x '*__pycache__*' '*.pyc'
+
+      # Releases in this repository are immutable: assets can only be attached
+      # while the release is created, never afterwards.
+      - name: Create the release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ inputs.version }}
           generate_release_notes: true
-          files: |
-            custom_components/**/*
+          prerelease: ${{ steps.check.outputs.prerelease == 'true' }}
+          files: custom_components/ixmanager/ixmanager.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

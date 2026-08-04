@@ -80,9 +80,10 @@ Home Assistant only accepts lower-case translation keys, which forced two identi
 9. Restart Home Assistant
 
 ### Manual Installation
-1. Download the latest release from the [releases page](https://github.com/Jarec/home-assistant-ixmanager/releases)
-2. Extract the `custom_components/ixmanager` folder to your Home Assistant `custom_components` directory
-3. Restart Home Assistant to load the integration
+1. Download `ixmanager.zip` from the latest release on the [releases page](https://github.com/Jarec/home-assistant-ixmanager/releases)
+2. Create a `custom_components/ixmanager` directory in your Home Assistant configuration
+3. Extract the archive **into** that directory — its files sit at the root of the zip, so you should end up with `custom_components/ixmanager/manifest.json`
+4. Restart Home Assistant to load the integration
 
 ## Configuration
 
@@ -109,3 +110,16 @@ python3 -m venv .venv
 ```
 
 The same checks run in CI on every push and pull request, next to `hassfest` and the HACS validator.
+
+### Releasing
+
+A release is a single command — or the *Run workflow* button on the
+[Release workflow](https://github.com/Jarec/home-assistant-ixmanager/actions/workflows/release.yml):
+
+```bash
+gh workflow run release.yml -f version=3.1.4
+```
+
+The workflow runs the full validation, then bumps `manifest.json`, commits, tags `v3.1.4`, builds
+`ixmanager.zip` and publishes the release. Never edit the version in `manifest.json` or create the tag
+by hand — the workflow owns both, which is what keeps them from drifting apart.

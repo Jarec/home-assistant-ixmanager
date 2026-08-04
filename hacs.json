@@ -2,5 +2,8 @@
   "name": "iXmanager Integration",
   "render_readme": true,
   "country": "CZ",
-  "homeassistant": "2026.7.0"
+  "homeassistant": "2026.7.0",
+  "zip_release": true,
+  "filename": "ixmanager.zip",
+  "hide_default_branch": true
 }
