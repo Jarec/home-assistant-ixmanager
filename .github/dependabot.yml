@@ -1,0 +1,36 @@
+# Dependabot keeps the pinned CI tooling current. Runs on Monday morning, just
+# after the weekly `Validate` cron, so a failing update lands next to a known
+# good baseline run.
+#
+# Note: Dependabot does not touch `rev:` in .pre-commit-config.yaml. When it
+# bumps ruff in requirements-dev.txt, bump the ruff-pre-commit rev to the same
+# version by hand (or run `pre-commit autoupdate`) — the two must not drift.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Picks up requirements-dev.txt. `homeassistant` is a `>=` floor, so it never
+  # produces a PR — that is intentional, CI is meant to run against whatever
+  # core release is current.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    groups:
+      dev-tooling:
+        patterns:
+          - "*"

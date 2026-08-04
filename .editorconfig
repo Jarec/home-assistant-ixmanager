@@ -1,0 +1,30 @@
+# EditorConfig — https://editorconfig.org
+#
+# Mirrors what the tooling already enforces: ruff format for Python and the
+# pre-commit hooks (end-of-file-fixer, trailing-whitespace) for everything else.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.py]
+indent_size = 4
+# ruff format default; E501 is disabled on purpose, the formatter owns the width
+max_line_length = 88
+
+[*.{json,yaml,yml,toml}]
+indent_size = 2
+
+[*.md]
+# trailing spaces are a hard line break in Markdown
+# (matches --markdown-linebreak-ext=md in .pre-commit-config.yaml)
+trim_trailing_whitespace = false
+
+[{LICENSE,*.txt}]
+indent_size = 4

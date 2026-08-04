@@ -73,14 +73,14 @@ Home Assistant only accepts lower-case translation keys, which forced two identi
 2. Go to HACS → Integrations
 3. Click the three dots menu (⋮) in the top right corner
 4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/kubacizek/home-assistant-ixmanager`
+5. Add this repository URL: `https://github.com/Jarec/home-assistant-ixmanager`
 6. Select category: "Integration"
 7. Click "Add"
 8. Search for "iXmanager" in HACS and install it
 9. Restart Home Assistant
 
 ### Manual Installation
-1. Download the latest release from the [releases page](https://github.com/kubacizek/home-assistant-ixmanager/releases)
+1. Download the latest release from the [releases page](https://github.com/Jarec/home-assistant-ixmanager/releases)
 2. Extract the `custom_components/ixmanager` folder to your Home Assistant `custom_components` directory
 3. Restart Home Assistant to load the integration
 

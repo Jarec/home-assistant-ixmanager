@@ -1,0 +1,7 @@
+# Git-side counterpart to .editorconfig: the editor is asked to write LF,
+# this makes sure git stores and checks out LF even if it doesn't.
+* text=auto eol=lf
+
+# Builtin diff drivers — hunk headers show the enclosing def/class or heading.
+*.py text diff=python
+*.md text diff=markdown

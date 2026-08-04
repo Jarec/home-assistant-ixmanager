@@ -1,13 +1,13 @@
 {
   "domain": "ixmanager",
   "name": "iXmanager Integration",
-  "codeowners": ["@kubacizek"],
+  "codeowners": ["@Jarec"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/kubacizek/home-assistant-ixmanager",
+  "documentation": "https://github.com/Jarec/home-assistant-ixmanager",
   "integration_type": "device",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/kubacizek/home-assistant-ixmanager/issues",
+  "issue_tracker": "https://github.com/Jarec/home-assistant-ixmanager/issues",
   "loggers": ["custom_components.ixmanager"],
   "requirements": [],
   "version": "3.1.1"
