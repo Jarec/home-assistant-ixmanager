@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-import logging
 from typing import Any, override
 
 from homeassistant.components.number import (
@@ -34,9 +33,8 @@ from .const import (
 from .coordinator import IXManagerConfigEntry, IXManagerDataUpdateCoordinator
 from .entity import IXManagerEntity, IXManagerEntityDescription
 
-_LOGGER = logging.getLogger(__name__)
-
-PARALLEL_UPDATES = 0
+# Writes are serialized rather than dropped, so the last requested value wins
+PARALLEL_UPDATES = 1
 
 
 def _cable_max(cable_max: int, data: dict[str, Any]) -> float:
@@ -55,6 +53,10 @@ def _cable_max(cable_max: int, data: dict[str, Any]) -> float:
 def _target_current_max(cable_max: int, data: dict[str, Any]) -> float:
     """Cap the target current at the wallbox's live maximum current setting.
 
+    An unusable reading falls back to the cable limit silently: the
+    ``maximum_current`` entity warns about the very same value in its own
+    ``native_value``, and this runs on every state write.
+
     Args:
         cable_max: Maximum current the configured cable can carry
         data: Current coordinator data
@@ -69,7 +71,6 @@ def _target_current_max(cable_max: int, data: dict[str, Any]) -> float:
     try:
         return min(float(cable_max), float(maximum_current))
     except ValueError, TypeError:
-        _LOGGER.warning("Invalid maximum current value: %s", maximum_current)
         return float(cable_max)
 
 
@@ -120,7 +121,9 @@ NUMBERS: tuple[IXManagerNumberEntityDescription, ...] = (
         native_min_value=MIN_CHARGING_CURRENT,
         native_step=CHARGING_CURRENT_STEP,
         mode=NumberMode.SLIDER,
-        max_value_fn=_target_current_max,
+        # Boost is a deliberate, temporary override of the normal limit, so it
+        # is bounded by the cable only — not by the maximum current setting.
+        max_value_fn=_cable_max,
     ),
     IXManagerNumberEntityDescription(
         key="boost_time",
@@ -189,6 +192,10 @@ class IXManagerNumber(IXManagerEntity, NumberEntity):
         Home Assistant validates any requested value against this before
         ``async_set_native_value`` is reached.
 
+        The current value also raises the ceiling, so that a device-side limit
+        dropping below what is already set leaves a coherent slider the user
+        can still turn down, rather than a value outside its own range.
+
         Returns:
             Maximum settable value in the entity's native unit
         """
@@ -203,10 +210,15 @@ class IXManagerNumber(IXManagerEntity, NumberEntity):
         if native_min_value is None:
             native_min_value = DEFAULT_MIN_VALUE
 
-        return max(
+        derived = max(
             native_min_value,
             max_value_fn(self._cable_max_current, self.coordinator.data or {}),
         )
+
+        current = self.native_value
+        if current is not None and current > derived:
+            return current
+        return derived
 
     @property
     @override
@@ -223,8 +235,8 @@ class IXManagerNumber(IXManagerEntity, NumberEntity):
         try:
             return float(value)
         except ValueError, TypeError:
-            _LOGGER.warning(
-                "Invalid value for %s: %s", self.entity_description.key, value
+            self._warn_once(
+                value, "Invalid value for %s: %s", self.entity_description.key, value
             )
             return None
 

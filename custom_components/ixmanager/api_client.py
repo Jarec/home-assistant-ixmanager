@@ -15,6 +15,7 @@ from .exceptions import (
     IXManagerError,
     IXManagerNotFoundError,
 )
+from .util import WritableValue
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class IXManagerApiClient:
         _LOGGER.debug("Received data: %s", data)
         return data
 
-    async def async_set_property(self, key: str, value: Any) -> None:
+    async def async_set_property(self, key: str, value: WritableValue) -> None:
         """Set a device property via the API.
 
         Args:

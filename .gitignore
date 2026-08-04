@@ -94,7 +94,3 @@ translations/*.cache.json
 
 # Misc
 *.orig
-
-
-# Claude specific files
-CLAUDE.md

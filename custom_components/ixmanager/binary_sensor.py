@@ -13,7 +13,8 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import PROPERTY_BOOST_STATE, PROPERTY_CHARGING_STATE
 from .coordinator import IXManagerConfigEntry
-from .entity import IXManagerEntity, IXManagerEntityDescription, coerce_bool
+from .entity import IXManagerEntity, IXManagerEntityDescription
+from .util import coerce_bool
 
 PARALLEL_UPDATES = 0
 
@@ -71,9 +72,18 @@ class IXManagerBinarySensor(IXManagerEntity, BinarySensorEntity):
         """Return true if the property is set.
 
         Returns:
-            Property state, or None if not available
+            Property state, or None if not reported or not interpretable
         """
         value = self._property_value
         if value is None:
             return None
-        return coerce_bool(value)
+
+        state = coerce_bool(value)
+        if state is None:
+            self._warn_once(
+                value,
+                "Unrecognized boolean value for %s: %s",
+                self.entity_description.key,
+                value,
+            )
+        return state

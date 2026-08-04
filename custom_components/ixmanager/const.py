@@ -11,10 +11,17 @@ DOMAIN: Final = "ixmanager"
 # API Configuration
 BASE_URL: Final = "https://evcharger.ixcommand.com/api/v1"
 API_TIMEOUT: Final = 10
-UPDATE_INTERVAL: Final = timedelta(seconds=30)
+UPDATE_INTERVAL: Final = timedelta(seconds=15)
 
-# Seconds to wait after a write before re-reading the device to verify it
+# Cooldown of the debouncer that re-reads the device after a write, in seconds.
+# Several writes in a row therefore collapse into a single verification refresh.
 WRITE_VERIFY_DELAY: Final = 2
+
+# How long an optimistic value is held before the device is considered to have
+# rejected it, in seconds. Tuned against UPDATE_INTERVAL: with the verification
+# refresh above, a write is checked at roughly +2s and again at +17s, so this
+# gives the cloud two chances to catch up before the write is given up on.
+PENDING_WRITE_TIMEOUT: Final = 15
 
 # Configuration keys
 CONF_API_KEY: Final = "api_key"

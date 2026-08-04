@@ -1,8 +1,7 @@
 # iXmanager Integration
 
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/kubacizek)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/kubacizek/home-assistant-ixmanager.svg)](https://github.com/kubacizek/home-assistant-ixmanager/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/Jarec/home-assistant-ixmanager)](https://github.com/Jarec/home-assistant-ixmanager/releases)
 
 This integration provides support for the [R-EVC Wallbox EcoVolter](https://r-evc.com/index.php?route=product/product&path=60&product_id=135), utilizing the iXmanager [API](https://evcharger.ixcommand.com).
 

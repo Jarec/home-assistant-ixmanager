@@ -9,9 +9,11 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import PROPERTY_CHARGING_ENABLE, PROPERTY_SINGLE_PHASE
 from .coordinator import IXManagerConfigEntry
-from .entity import IXManagerEntity, IXManagerEntityDescription, coerce_bool
+from .entity import IXManagerEntity, IXManagerEntityDescription
+from .util import coerce_bool
 
-PARALLEL_UPDATES = 0
+# Writes are serialized rather than dropped, so the last requested value wins
+PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -55,10 +57,14 @@ async def async_setup_entry(
 
 
 class IXManagerSwitch(IXManagerEntity, SwitchEntity):
-    """Switch toggling a single boolean iXmanager property."""
+    """Switch toggling a single boolean iXmanager property.
+
+    No ``assumed_state``: the property can be read back, and the coordinator's
+    pending-write overlay keeps the optimistic value stable until the device
+    confirms it, so the state shown is a real one.
+    """
 
     entity_description: IXManagerSwitchEntityDescription
-    _attr_assumed_state = True
 
     @property
     @override
@@ -66,12 +72,21 @@ class IXManagerSwitch(IXManagerEntity, SwitchEntity):
         """Return true if the switch is on.
 
         Returns:
-            Switch state, or None if not available
+            Switch state, or None if not reported or not interpretable
         """
         value = self._property_value
         if value is None:
             return None
-        return coerce_bool(value)
+
+        state = coerce_bool(value)
+        if state is None:
+            self._warn_once(
+                value,
+                "Unrecognized boolean value for %s: %s",
+                self.entity_description.key,
+                value,
+            )
+        return state
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:

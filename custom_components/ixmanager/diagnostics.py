@@ -31,6 +31,9 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": async_redact_data(entry.as_dict(), TO_REDACT),
         "last_update_success": coordinator.last_update_success,
+        # Values written but not yet confirmed by the wallbox — the first thing
+        # to look at when a control appears to revert on its own
+        "pending_writes": coordinator.pending_writes,
         "data": (
             async_redact_data(coordinator.data, TO_REDACT_DATA)
             if coordinator.data

@@ -1,36 +1,20 @@
 """Shared entity base for the iXmanager integration."""
 
-import asyncio
 from dataclasses import dataclass
 import logging
-from typing import Any, override
+from typing import Any
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_SERIAL_NUMBER, DOMAIN, WRITE_VERIFY_DELAY
+from .const import CONF_SERIAL_NUMBER, DOMAIN
 from .coordinator import IXManagerConfigEntry, IXManagerDataUpdateCoordinator
 from .exceptions import IXManagerError
+from .util import WritableValue
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def coerce_bool(value: Any) -> bool:
-    """Interpret an API property value as a boolean.
-
-    The API reports booleans natively, but may fall back to their string form.
-
-    Args:
-        value: Raw value from the API
-
-    Returns:
-        True if the value represents a truthy property
-    """
-    if isinstance(value, bool):
-        return value
-    return str(value).lower() == "true"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -68,7 +52,7 @@ class IXManagerEntity(CoordinatorEntity[IXManagerDataUpdateCoordinator]):
         super().__init__(coordinator)
         self.entity_description = description
         self._property_key = description.property_key
-        self._api_call_in_progress = False
+        self._warned_values: set[str] = set()
 
         serial_number = entry.data[CONF_SERIAL_NUMBER]
         self._attr_unique_id = f"{serial_number}_{description.key}"
@@ -81,37 +65,50 @@ class IXManagerEntity(CoordinatorEntity[IXManagerDataUpdateCoordinator]):
         )
 
     @property
-    @override
-    def available(self) -> bool:
-        """Return if entity is available.
-
-        Returns:
-            True if the coordinator holds a usable value for this property
-        """
-        return (
-            self.coordinator.last_update_success
-            and self.coordinator.data is not None
-            and self.coordinator.data.get(self._property_key) is not None
-        )
-
-    @property
     def _property_value(self) -> Any:
         """Return the raw value of this entity's property.
 
+        A property the API did not report yields None, which surfaces as
+        ``unknown`` — not as ``unavailable``. Availability is inherited from
+        ``CoordinatorEntity`` and answers a different question: whether the
+        wallbox can be reached at all. Conflating the two would tear holes in
+        the recorder history and fire availability automations whenever a
+        single value went missing.
+
         Returns:
-            The value from the coordinator, or None if unavailable
+            The value from the coordinator, or None if it was not reported
         """
-        if not self.available:
-            return None
         return self.coordinator.data.get(self._property_key)
 
-    async def _async_write_property(self, value: Any) -> None:
-        """Write a property optimistically and verify it afterwards.
+    def _warn_once(self, token: object, message: str, *args: object) -> None:
+        """Log a warning only the first time a given value is seen.
 
-        The value is pushed into the coordinator data and rendered immediately
-        so the UI stays responsive, then sent to the API. A background task
-        re-reads the device shortly after to correct the state if the wallbox
-        disagreed.
+        The coordinator polls continuously, so an unexpected value would
+        otherwise be logged on every single update.
+
+        Args:
+            token: Value identifying this warning; repeats are suppressed
+            message: Logging format string
+            *args: Arguments for the format string
+        """
+        key = repr(token)
+        if key in self._warned_values:
+            return
+
+        self._warned_values.add(key)
+        _LOGGER.warning(message, *args)
+
+    async def _async_write_property(self, value: WritableValue) -> None:
+        """Write a property optimistically and have the device confirm it.
+
+        The value is handed to the coordinator, which renders it immediately
+        and holds it until the device reports it back, so the UI responds at
+        once without flapping. The trailing refresh request is debounced, so a
+        burst of writes costs a single verification read.
+
+        Concurrent writes are serialized by ``PARALLEL_UPDATES`` on the
+        platform rather than being dropped, so the last value a user asked for
+        always reaches the device.
 
         Args:
             value: Value to send to the API
@@ -119,27 +116,17 @@ class IXManagerEntity(CoordinatorEntity[IXManagerDataUpdateCoordinator]):
         Raises:
             HomeAssistantError: If the API rejected the write
         """
-        if self._api_call_in_progress:
-            _LOGGER.debug(
-                "API call already in progress for %s, ignoring request",
-                self._property_key,
-            )
-            return
+        _LOGGER.debug("Setting %s to %s", self._property_key, value)
+        self.coordinator.async_set_pending(self._property_key, value)
 
-        self._api_call_in_progress = True
         try:
-            _LOGGER.debug("Setting %s to %s", self._property_key, value)
-
-            if self.coordinator.data is not None:
-                self.coordinator.data[self._property_key] = value
-                self.async_write_ha_state()
-
             await self.coordinator.api_client.async_set_property(
                 self._property_key, value
             )
-
         except IXManagerError as err:
             _LOGGER.error("Failed to set %s to %s: %s", self._property_key, value, err)
+            # The write is known to have failed, so do not keep showing it.
+            self.coordinator.async_clear_pending(self._property_key)
             await self.coordinator.async_refresh()
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
@@ -151,23 +138,4 @@ class IXManagerEntity(CoordinatorEntity[IXManagerDataUpdateCoordinator]):
                 },
             ) from err
 
-        finally:
-            self._api_call_in_progress = False
-
-        self.hass.async_create_background_task(
-            self._async_verify_write(),
-            name=f"{DOMAIN} verify {self._attr_unique_id}",
-        )
-
-    async def _async_verify_write(self) -> None:
-        """Re-read the device after a write to reconcile the optimistic state.
-
-        ``async_refresh`` is used rather than ``async_request_refresh`` because
-        the latter is debounced by ten seconds, which would make the delay
-        below meaningless.
-        """
-        await asyncio.sleep(WRITE_VERIFY_DELAY)
-        try:
-            await self.coordinator.async_refresh()
-        except Exception as err:  # noqa: BLE001 - background task, must never escape
-            _LOGGER.debug("Write verification refresh failed: %s", err)
+        await self.coordinator.async_request_refresh()

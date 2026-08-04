@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-import logging
 from typing import Any, override
 
 from homeassistant.components.sensor import (
@@ -39,8 +38,6 @@ from .const import (
 from .coordinator import IXManagerConfigEntry
 from .entity import IXManagerEntity, IXManagerEntityDescription
 
-_LOGGER = logging.getLogger(__name__)
-
 PARALLEL_UPDATES = 0
 
 
@@ -62,7 +59,8 @@ def _charging_status(value: Any) -> str | None:
     The API reports the status in upper case, while the entity options are
     lower case so that they are usable as translation keys. An enum sensor may
     only report values listed in its options, so anything unexpected is
-    reported as unknown instead.
+    reported as unknown instead. Reporting it is left to the entity, which can
+    warn once instead of on every poll.
 
     Args:
         value: Raw value from the API
@@ -72,7 +70,6 @@ def _charging_status(value: Any) -> str | None:
     """
     status = str(value).lower()
     if status not in CHARGING_STATUS_OPTIONS:
-        _LOGGER.warning("Wallbox reported an unknown charging status: %s", status)
         return None
     return status
 
@@ -211,6 +208,10 @@ class IXManagerSensor(IXManagerEntity, SensorEntity):
     def native_value(self) -> StateType:
         """Return the state of the sensor.
 
+        A conversion that yields None for a value the device did report means
+        the device said something this integration does not understand — an
+        unlisted charging status, for instance — which is worth surfacing.
+
         Returns:
             Converted sensor value, or None if missing or unparsable
         """
@@ -219,9 +220,18 @@ class IXManagerSensor(IXManagerEntity, SensorEntity):
             return None
 
         try:
-            return self.entity_description.value_fn(value)
+            converted = self.entity_description.value_fn(value)
         except ValueError, TypeError:
-            _LOGGER.warning(
-                "Invalid value for %s: %s", self.entity_description.key, value
+            self._warn_once(
+                value, "Invalid value for %s: %s", self.entity_description.key, value
             )
             return None
+
+        if converted is None:
+            self._warn_once(
+                value,
+                "Wallbox reported an unsupported value for %s: %s",
+                self.entity_description.key,
+                value,
+            )
+        return converted
