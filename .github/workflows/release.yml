@@ -18,7 +18,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The caller's permissions apply to the whole called workflow, and the top
+  # level here grants none — without this the checkout inside `validate.yml`
+  # has no token to fetch with.
   validate:
+    permissions:
+      contents: read
     uses: ./.github/workflows/validate.yml
 
   release:
