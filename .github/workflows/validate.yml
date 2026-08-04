@@ -31,3 +31,29 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+
+  lint:
+    name: Lint & type check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff check
+        run: ruff check --output-format=github custom_components
+
+      - name: ruff format
+        run: ruff format --check --diff custom_components
+
+      - name: mypy
+        run: mypy custom_components/ixmanager

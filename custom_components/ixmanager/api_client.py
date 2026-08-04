@@ -1,23 +1,20 @@
 """API client for iXmanager integration."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
-from typing import Any
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import API_TIMEOUT
-from .const import BASE_URL
-from .const import PROPERTY_CHARGING_ENABLE
-from .exceptions import IXManagerAuthenticationError
-from .exceptions import IXManagerConnectionError
-from .exceptions import IXManagerError
-from .exceptions import IXManagerNotFoundError
+from .const import API_TIMEOUT, BASE_URL, PROPERTY_CHARGING_ENABLE
+from .exceptions import (
+    IXManagerAuthenticationError,
+    IXManagerConnectionError,
+    IXManagerError,
+    IXManagerNotFoundError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,18 +82,18 @@ class IXManagerApiClient:
 
         try:
             _LOGGER.debug("Fetching properties: %s", keys)
-            async with asyncio.timeout(API_TIMEOUT):
-                async with self._session.get(
+            async with (
+                asyncio.timeout(API_TIMEOUT),
+                self._session.get(
                     self._url, headers=headers, params=params
-                ) as response:
-                    if response.status != 200:
-                        self._raise_for_status(response.status)
+                ) as response,
+            ):
+                if response.status != 200:
+                    self._raise_for_status(response.status)
 
-                    data: dict[str, Any] = await response.json()
-                    _LOGGER.debug("Received data: %s", data)
-                    return data
+                data: dict[str, Any] = await response.json()
 
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             raise IXManagerConnectionError(
                 "Timeout connecting to iXmanager API"
             ) from err
@@ -104,6 +101,9 @@ class IXManagerApiClient:
             raise IXManagerConnectionError(
                 f"Error connecting to iXmanager API: {err}"
             ) from err
+
+        _LOGGER.debug("Received data: %s", data)
+        return data
 
     async def async_set_property(self, key: str, value: Any) -> None:
         """Set a device property via the API.
@@ -123,16 +123,16 @@ class IXManagerApiClient:
 
         try:
             _LOGGER.debug("Setting property %s to %s", key, value)
-            async with asyncio.timeout(API_TIMEOUT):
-                async with self._session.patch(
-                    self._url, headers=headers, json=data
-                ) as response:
-                    if response.status not in (200, 204):
-                        self._raise_for_status(response.status)
+            async with (
+                asyncio.timeout(API_TIMEOUT),
+                self._session.patch(self._url, headers=headers, json=data) as response,
+            ):
+                if response.status not in (200, 204):
+                    self._raise_for_status(response.status)
 
-                    _LOGGER.debug("Successfully set property %s", key)
+                _LOGGER.debug("Successfully set property %s", key)
 
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             raise IXManagerConnectionError(
                 "Timeout connecting to iXmanager API"
             ) from err

@@ -1,22 +1,17 @@
 """Shared entity base for the iXmanager integration."""
 
-from __future__ import annotations
-
 import asyncio
-import logging
 from dataclasses import dataclass
-from typing import Any
+import logging
+from typing import Any, override
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_SERIAL_NUMBER
-from .const import DOMAIN
-from .const import WRITE_VERIFY_DELAY
-from .coordinator import IXManagerConfigEntry
-from .coordinator import IXManagerDataUpdateCoordinator
+from .const import CONF_SERIAL_NUMBER, DOMAIN, WRITE_VERIFY_DELAY
+from .coordinator import IXManagerConfigEntry, IXManagerDataUpdateCoordinator
 from .exceptions import IXManagerError
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,6 +81,7 @@ class IXManagerEntity(CoordinatorEntity[IXManagerDataUpdateCoordinator]):
         )
 
     @property
+    @override
     def available(self) -> bool:
         """Return if entity is available.
 
@@ -173,5 +169,5 @@ class IXManagerEntity(CoordinatorEntity[IXManagerDataUpdateCoordinator]):
         await asyncio.sleep(WRITE_VERIFY_DELAY)
         try:
             await self.coordinator.async_refresh()
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:  # noqa: BLE001 - background task, must never escape
             _LOGGER.debug("Write verification refresh failed: %s", err)

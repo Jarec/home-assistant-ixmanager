@@ -1,22 +1,18 @@
 """The iXmanager integration."""
 
-from __future__ import annotations
-
 import logging
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .api_client import IXManagerApiClient
-from .const import CONF_API_KEY
-from .const import CONF_SERIAL_NUMBER
-from .const import PLATFORMS
-from .coordinator import IXManagerConfigEntry
-from .coordinator import IXManagerDataUpdateCoordinator
-from .exceptions import IXManagerAuthenticationError
-from .exceptions import IXManagerConnectionError
-from .exceptions import IXManagerError
+from .const import CONF_API_KEY, CONF_SERIAL_NUMBER, PLATFORMS
+from .coordinator import IXManagerConfigEntry, IXManagerDataUpdateCoordinator
+from .exceptions import (
+    IXManagerAuthenticationError,
+    IXManagerConnectionError,
+    IXManagerError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 

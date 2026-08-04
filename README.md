@@ -50,6 +50,13 @@ duration:
    greater than zero starts it; **Boost** turns on and **Boost remaining** counts down.
 3. To cancel a running boost, set **Boost duration** back to `0`.
 
+## Upgrading to 3.1.1
+
+Home Assistant only accepts lower-case translation keys, which forced two identifiers to change:
+
+- **Charging status is now reported in lower case** — `charging` instead of `CHARGING`, `charging_with_ventilation` instead of `CHARGING_WITH_VENTILATION`, and so on. The displayed state is unaffected, but any automation or template comparing the raw state has to be updated, and the recorder history splits at the upgrade.
+- **The cable type has to be selected again.** Go to `Settings > Devices & Services > iXmanager > Configure` and pick your cable. Until you do, the integration falls back to the 16 A cable, which caps the maximum, target and boost current at 16 A.
+
 ## Upgrading to 3.0.0
 
 3.0.0 contains breaking changes:
@@ -87,3 +94,19 @@ duration:
 
 ## Usage
 Once the integration is configured, you can start using your R-EVC Wallbox EcoVolter directly from Home Assistant. Monitor charging status, control charging sessions, and integrate with other Home Assistant automations.
+
+## Development
+
+Linting, formatting and type checking follow Home Assistant core's setup — [ruff](https://docs.astral.sh/ruff/) for linting and formatting, [mypy](https://mypy-lang.org/) in strict mode. The configuration lives in `pyproject.toml`, the pinned tool versions in `requirements-dev.txt`.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pre-commit install
+
+.venv/bin/ruff check custom_components
+.venv/bin/ruff format custom_components
+.venv/bin/mypy custom_components/ixmanager
+```
+
+The same checks run in CI on every push and pull request, next to `hassfest` and the HACS validator.

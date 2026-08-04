@@ -56,8 +56,8 @@
   "selector": {
     "cable_type": {
       "options": {
-        "16A": "Type 2 Cable (16A Max) - Standard charging cable",
-        "32A": "Type 2 Cable (32A Max) - High power charging cable"
+        "16a": "Type 2 Cable (16A Max) - Standard charging cable",
+        "32a": "Type 2 Cable (32A Max) - High power charging cable"
       }
     }
   },
@@ -87,13 +87,13 @@
       "charging_status": {
         "name": "Charging status",
         "state": {
-          "INIT": "Initializing",
-          "IDLE": "No vehicle connected",
-          "CONNECTED": "Vehicle connected",
-          "CHARGING": "Charging",
-          "CHARGING_WITH_VENTILATION": "Charging with ventilation",
-          "CONTROL_PILOT_ERROR": "Control pilot error",
-          "ERROR": "Error"
+          "init": "Initializing",
+          "idle": "No vehicle connected",
+          "connected": "Vehicle connected",
+          "charging": "Charging",
+          "charging_with_ventilation": "Charging with ventilation",
+          "control_pilot_error": "Control pilot error",
+          "error": "Error"
         }
       },
       "wifi_ssid": {

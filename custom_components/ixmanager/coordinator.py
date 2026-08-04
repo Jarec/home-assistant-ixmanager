@@ -1,22 +1,16 @@
 """Data update coordinator for iXmanager integration."""
 
-from __future__ import annotations
-
 import logging
-from typing import Any
+from typing import Any, override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api_client import IXManagerApiClient
-from .const import DOMAIN
-from .const import PROPERTIES_TO_FETCH
-from .const import UPDATE_INTERVAL
-from .exceptions import IXManagerAuthenticationError
-from .exceptions import IXManagerError
+from .const import DOMAIN, PROPERTIES_TO_FETCH, UPDATE_INTERVAL
+from .exceptions import IXManagerAuthenticationError, IXManagerError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +58,7 @@ class IXManagerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=UPDATE_INTERVAL,
         )
 
+    @override
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch every tracked property and flatten the response.
 

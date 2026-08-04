@@ -1,21 +1,15 @@
 """Switch platform for iXmanager integration."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, override
 
-from homeassistant.components.switch import SwitchEntity
-from homeassistant.components.switch import SwitchEntityDescription
+from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import PROPERTY_CHARGING_ENABLE
-from .const import PROPERTY_SINGLE_PHASE
+from .const import PROPERTY_CHARGING_ENABLE, PROPERTY_SINGLE_PHASE
 from .coordinator import IXManagerConfigEntry
-from .entity import IXManagerEntity
-from .entity import IXManagerEntityDescription
-from .entity import coerce_bool
+from .entity import IXManagerEntity, IXManagerEntityDescription, coerce_bool
 
 PARALLEL_UPDATES = 0
 
@@ -67,6 +61,7 @@ class IXManagerSwitch(IXManagerEntity, SwitchEntity):
     _attr_assumed_state = True
 
     @property
+    @override
     def is_on(self) -> bool | None:
         """Return true if the switch is on.
 
@@ -78,6 +73,7 @@ class IXManagerSwitch(IXManagerEntity, SwitchEntity):
             return None
         return coerce_bool(value)
 
+    @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on.
 
@@ -89,6 +85,7 @@ class IXManagerSwitch(IXManagerEntity, SwitchEntity):
         """
         await self._async_write_property(True)
 
+    @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off.
 

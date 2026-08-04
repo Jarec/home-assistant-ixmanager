@@ -56,8 +56,8 @@
   "selector": {
     "cable_type": {
       "options": {
-        "16A": "Kabel Type 2 (max 16A) - Standardní kabel",
-        "32A": "Kabel Type 2 (max 32A) - Výkonný kabel"
+        "16a": "Kabel Type 2 (max 16A) - Standardní kabel",
+        "32a": "Kabel Type 2 (max 32A) - Výkonný kabel"
       }
     }
   },
@@ -87,13 +87,13 @@
       "charging_status": {
         "name": "Stav nabíjení",
         "state": {
-          "INIT": "Inicializace",
-          "IDLE": "Vozidlo nepřipojeno",
-          "CONNECTED": "Vozidlo připojeno",
-          "CHARGING": "Nabíjí se",
-          "CHARGING_WITH_VENTILATION": "Nabíjí se s ventilací",
-          "CONTROL_PILOT_ERROR": "Chyba řídicího pilotu",
-          "ERROR": "Chyba"
+          "init": "Inicializace",
+          "idle": "Vozidlo nepřipojeno",
+          "connected": "Vozidlo připojeno",
+          "charging": "Nabíjí se",
+          "charging_with_ventilation": "Nabíjí se s ventilací",
+          "control_pilot_error": "Chyba řídicího pilotu",
+          "error": "Chyba"
         }
       },
       "wifi_ssid": {

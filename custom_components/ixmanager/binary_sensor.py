@@ -1,21 +1,19 @@
 """Binary sensor platform for iXmanager integration."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
+from typing import override
 
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.components.binary_sensor import BinarySensorEntityDescription
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+    BinarySensorEntityDescription,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import PROPERTY_BOOST_STATE
-from .const import PROPERTY_CHARGING_STATE
+from .const import PROPERTY_BOOST_STATE, PROPERTY_CHARGING_STATE
 from .coordinator import IXManagerConfigEntry
-from .entity import IXManagerEntity
-from .entity import IXManagerEntityDescription
-from .entity import coerce_bool
+from .entity import IXManagerEntity, IXManagerEntityDescription, coerce_bool
 
 PARALLEL_UPDATES = 0
 
@@ -68,6 +66,7 @@ class IXManagerBinarySensor(IXManagerEntity, BinarySensorEntity):
     entity_description: IXManagerBinarySensorEntityDescription
 
     @property
+    @override
     def is_on(self) -> bool | None:
         """Return true if the property is set.
 

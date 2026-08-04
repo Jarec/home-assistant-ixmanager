@@ -1,39 +1,38 @@
 """Number platform for iXmanager integration."""
 
-from __future__ import annotations
-
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+import logging
+from typing import Any, override
 
-from homeassistant.components.number import DEFAULT_MAX_VALUE
-from homeassistant.components.number import DEFAULT_MIN_VALUE
-from homeassistant.components.number import NumberDeviceClass
-from homeassistant.components.number import NumberEntity
-from homeassistant.components.number import NumberEntityDescription
-from homeassistant.components.number import NumberMode
-from homeassistant.const import UnitOfElectricCurrent
-from homeassistant.const import UnitOfTime
+from homeassistant.components.number import (
+    DEFAULT_MAX_VALUE,
+    DEFAULT_MIN_VALUE,
+    NumberDeviceClass,
+    NumberEntity,
+    NumberEntityDescription,
+    NumberMode,
+)
+from homeassistant.const import UnitOfElectricCurrent, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import BOOST_TIME_MAX
-from .const import BOOST_TIME_MIN
-from .const import BOOST_TIME_STEP
-from .const import CABLE_TYPES
-from .const import CHARGING_CURRENT_STEP
-from .const import CONF_CABLE_TYPE
-from .const import DEFAULT_CABLE_TYPE
-from .const import MIN_CHARGING_CURRENT
-from .const import PROPERTY_BOOST_CURRENT
-from .const import PROPERTY_BOOST_TIME
-from .const import PROPERTY_MAXIMUM_CURRENT
-from .const import PROPERTY_TARGET_CURRENT
-from .coordinator import IXManagerConfigEntry
-from .coordinator import IXManagerDataUpdateCoordinator
-from .entity import IXManagerEntity
-from .entity import IXManagerEntityDescription
+from .const import (
+    BOOST_TIME_MAX,
+    BOOST_TIME_MIN,
+    BOOST_TIME_STEP,
+    CABLE_TYPES,
+    CHARGING_CURRENT_STEP,
+    CONF_CABLE_TYPE,
+    DEFAULT_CABLE_TYPE,
+    MIN_CHARGING_CURRENT,
+    PROPERTY_BOOST_CURRENT,
+    PROPERTY_BOOST_TIME,
+    PROPERTY_MAXIMUM_CURRENT,
+    PROPERTY_TARGET_CURRENT,
+)
+from .coordinator import IXManagerConfigEntry, IXManagerDataUpdateCoordinator
+from .entity import IXManagerEntity, IXManagerEntityDescription
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ def _target_current_max(cable_max: int, data: dict[str, Any]) -> float:
 
     try:
         return min(float(cable_max), float(maximum_current))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         _LOGGER.warning("Invalid maximum current value: %s", maximum_current)
         return float(cable_max)
 
@@ -177,9 +176,10 @@ class IXManagerNumber(IXManagerEntity, NumberEntity):
         super().__init__(coordinator, entry, description)
         cable_type = entry.data.get(CONF_CABLE_TYPE, DEFAULT_CABLE_TYPE)
         cable_spec = CABLE_TYPES.get(cable_type, CABLE_TYPES[DEFAULT_CABLE_TYPE])
-        self._cable_max_current = int(cable_spec["max_current"])
+        self._cable_max_current = cable_spec["max_current"]
 
     @property
+    @override
     def native_max_value(self) -> float:
         """Return the highest value this entity currently accepts.
 
@@ -209,6 +209,7 @@ class IXManagerNumber(IXManagerEntity, NumberEntity):
         )
 
     @property
+    @override
     def native_value(self) -> float | None:
         """Return the current value.
 
@@ -221,12 +222,13 @@ class IXManagerNumber(IXManagerEntity, NumberEntity):
 
         try:
             return float(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             _LOGGER.warning(
                 "Invalid value for %s: %s", self.entity_description.key, value
             )
             return None
 
+    @override
     async def async_set_native_value(self, value: float) -> None:
         """Write the value to the device.
 

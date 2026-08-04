@@ -1,16 +1,11 @@
 """Diagnostics support for the iXmanager integration."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_API_KEY
-from .const import CONF_SERIAL_NUMBER
-from .const import PROPERTY_BSSID
-from .const import PROPERTY_SSID
+from .const import CONF_API_KEY, CONF_SERIAL_NUMBER, PROPERTY_BSSID, PROPERTY_SSID
 from .coordinator import IXManagerConfigEntry
 
 TO_REDACT = {CONF_API_KEY, CONF_SERIAL_NUMBER, "unique_id"}

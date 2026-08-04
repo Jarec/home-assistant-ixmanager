@@ -1,34 +1,39 @@
 """Config flow for iXmanager integration."""
 
-from __future__ import annotations
-
-import logging
 from collections.abc import Mapping
-from typing import Any
+import logging
+from typing import Any, override
 
-import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.config_entries import ConfigFlow
-from homeassistant.config_entries import ConfigFlowResult
-from homeassistant.config_entries import OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_NAME
-from homeassistant.core import HomeAssistant
-from homeassistant.core import callback
-from homeassistant.helpers.selector import SelectSelector
-from homeassistant.helpers.selector import SelectSelectorConfig
-from homeassistant.helpers.selector import SelectSelectorMode
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
+import voluptuous as vol
 
 from .api_client import IXManagerApiClient
-from .const import CABLE_TYPES
-from .const import CONF_API_KEY
-from .const import CONF_CABLE_TYPE
-from .const import CONF_SERIAL_NUMBER
-from .const import DEFAULT_CABLE_TYPE
-from .const import DEFAULT_NAME
-from .const import DOMAIN
-from .exceptions import IXManagerAuthenticationError
-from .exceptions import IXManagerConnectionError
-from .exceptions import IXManagerNotFoundError
+from .const import (
+    CABLE_TYPES,
+    CONF_API_KEY,
+    CONF_CABLE_TYPE,
+    CONF_SERIAL_NUMBER,
+    DEFAULT_CABLE_TYPE,
+    DEFAULT_NAME,
+    DOMAIN,
+)
+from .exceptions import (
+    IXManagerAuthenticationError,
+    IXManagerConnectionError,
+    IXManagerNotFoundError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,9 +50,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_API_KEY): str,
         vol.Required(CONF_SERIAL_NUMBER): str,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
-        vol.Required(
-            CONF_CABLE_TYPE, default=DEFAULT_CABLE_TYPE
-        ): CABLE_TYPE_SELECTOR,
+        vol.Required(CONF_CABLE_TYPE, default=DEFAULT_CABLE_TYPE): CABLE_TYPE_SELECTOR,
     }
 )
 
@@ -73,7 +76,9 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     await api_client.async_validate_connection()
 
-    cable_info = CABLE_TYPES[data[CONF_CABLE_TYPE]]
+    # An entry configured before the cable identifiers were lower-cased still
+    # holds the old value, so fall back rather than raising a KeyError
+    cable_info = CABLE_TYPES.get(data[CONF_CABLE_TYPE], CABLE_TYPES[DEFAULT_CABLE_TYPE])
     return {
         "title": f"{data[CONF_NAME]} ({data[CONF_SERIAL_NUMBER]}) - {cable_info['name']}",
         "serial_number": data[CONF_SERIAL_NUMBER],
@@ -86,6 +91,7 @@ class IXManagerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @override
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -111,7 +117,7 @@ class IXManagerConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_serial_number"
             except IXManagerConnectionError:
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -167,7 +173,7 @@ class IXManagerConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_serial_number"
             except IXManagerConnectionError:
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -184,6 +190,7 @@ class IXManagerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
+    @override
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Create the options flow.
 

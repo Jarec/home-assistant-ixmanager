@@ -1,9 +1,7 @@
 """Constants for the iXmanager integration."""
 
-from __future__ import annotations
-
 from datetime import timedelta
-from typing import Final
+from typing import Final, TypedDict
 
 from homeassistant.const import Platform
 
@@ -65,22 +63,39 @@ PROPERTIES_TO_FETCH: Final = [
     PROPERTY_BSSID,
 ]
 
-# Vehicle charging states reported by the wallbox, following SAE J1772
+# Vehicle charging states reported by the wallbox, following SAE J1772.
+# The API reports these in upper case; they are lower-cased on the way in
+# because a translation key may only contain [a-z0-9-_].
 CHARGING_STATUS_OPTIONS: Final = [
-    "INIT",
-    "IDLE",
-    "CONNECTED",
-    "CHARGING",
-    "CHARGING_WITH_VENTILATION",
-    "CONTROL_PILOT_ERROR",
-    "ERROR",
+    "init",
+    "idle",
+    "connected",
+    "charging",
+    "charging_with_ventilation",
+    "control_pilot_error",
+    "error",
 ]
 
 # Cable types and specifications
-CABLE_TYPE_16A: Final = "16A"
-CABLE_TYPE_32A: Final = "32A"
+CABLE_TYPE_16A: Final = "16a"
+CABLE_TYPE_32A: Final = "32a"
 
-CABLE_TYPES: Final = {
+
+class CableSpec(TypedDict):
+    """Specification of a supported charging cable.
+
+    Attributes:
+        name: Human readable cable name, used in the config entry title
+        max_current: Highest current the cable may carry, in ampere
+        description: Longer explanation of the cable type
+    """
+
+    name: str
+    max_current: int
+    description: str
+
+
+CABLE_TYPES: Final[dict[str, CableSpec]] = {
     CABLE_TYPE_16A: {
         "name": "Type 2 Cable (16A Max)",
         "max_current": 16,

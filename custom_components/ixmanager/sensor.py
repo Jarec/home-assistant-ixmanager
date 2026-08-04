@@ -1,40 +1,43 @@
 """Sensor platform for iXmanager integration."""
 
-from __future__ import annotations
-
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+import logging
+from typing import Any, override
 
-from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.components.sensor import SensorEntityDescription
-from homeassistant.components.sensor import SensorStateClass
-from homeassistant.const import PERCENTAGE
-from homeassistant.const import EntityCategory
-from homeassistant.const import UnitOfElectricCurrent
-from homeassistant.const import UnitOfEnergy
-from homeassistant.const import UnitOfPower
-from homeassistant.const import UnitOfTime
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfEnergy,
+    UnitOfPower,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from .const import CHARGING_STATUS_OPTIONS
-from .const import PROPERTY_BOOST_REMAINING
-from .const import PROPERTY_BSSID
-from .const import PROPERTY_CHARGING_CURRENT
-from .const import PROPERTY_CHARGING_CURRENT_L2
-from .const import PROPERTY_CHARGING_CURRENT_L3
-from .const import PROPERTY_CHARGING_STATUS
-from .const import PROPERTY_CURRENT_CHARGING_POWER
-from .const import PROPERTY_SIGNAL
-from .const import PROPERTY_SSID
-from .const import PROPERTY_TOTAL_ENERGY
+from .const import (
+    CHARGING_STATUS_OPTIONS,
+    PROPERTY_BOOST_REMAINING,
+    PROPERTY_BSSID,
+    PROPERTY_CHARGING_CURRENT,
+    PROPERTY_CHARGING_CURRENT_L2,
+    PROPERTY_CHARGING_CURRENT_L3,
+    PROPERTY_CHARGING_STATUS,
+    PROPERTY_CURRENT_CHARGING_POWER,
+    PROPERTY_SIGNAL,
+    PROPERTY_SSID,
+    PROPERTY_TOTAL_ENERGY,
+)
 from .coordinator import IXManagerConfigEntry
-from .entity import IXManagerEntity
-from .entity import IXManagerEntityDescription
+from .entity import IXManagerEntity, IXManagerEntityDescription
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,18 +57,20 @@ def _percentage(value: Any) -> int:
 
 
 def _charging_status(value: Any) -> str | None:
-    """Validate a charging status against the known SAE J1772 states.
+    """Normalize a charging status and validate it against the SAE J1772 states.
 
-    An enum sensor may only report values listed in its options, so anything
-    unexpected is reported as unknown instead.
+    The API reports the status in upper case, while the entity options are
+    lower case so that they are usable as translation keys. An enum sensor may
+    only report values listed in its options, so anything unexpected is
+    reported as unknown instead.
 
     Args:
         value: Raw value from the API
 
     Returns:
-        The status, or None if the wallbox reported an unknown one
+        The lower-cased status, or None if the wallbox reported an unknown one
     """
-    status = str(value)
+    status = str(value).lower()
     if status not in CHARGING_STATUS_OPTIONS:
         _LOGGER.warning("Wallbox reported an unknown charging status: %s", status)
         return None
@@ -202,6 +207,7 @@ class IXManagerSensor(IXManagerEntity, SensorEntity):
     entity_description: IXManagerSensorEntityDescription
 
     @property
+    @override
     def native_value(self) -> StateType:
         """Return the state of the sensor.
 
@@ -214,7 +220,7 @@ class IXManagerSensor(IXManagerEntity, SensorEntity):
 
         try:
             return self.entity_description.value_fn(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             _LOGGER.warning(
                 "Invalid value for %s: %s", self.entity_description.key, value
             )
