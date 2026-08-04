@@ -2,7 +2,5 @@
   "name": "iXmanager Integration",
   "render_readme": true,
   "country": "CZ",
-  "domains": ["binary_sensor", "number", "sensor", "switch"],
-  "iot_class": "cloud_polling",
   "homeassistant": "2026.7.0"
 }

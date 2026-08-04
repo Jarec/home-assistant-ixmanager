@@ -31,6 +31,9 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # `brands` only applies to repositories submitted to the default HACS
+          # store; this one is installed as a custom repository.
+          ignore: brands
 
   lint:
     name: Lint & type check
